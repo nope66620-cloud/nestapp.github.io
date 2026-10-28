@@ -1,5 +1,6 @@
-// Wrapper fetch ke Apps Script backend. Prototype masih pakai data.js dummy;
-// ganti sumber data di app.js dari DATA ke API.* bertahap.
+// Wrapper ke Apps Script backend (JSON API).
+// Action names mengikuti backend Code.gs: login, login_pin, me, dashboard,
+// tx.list, tx.save, tx.delete, master, budget.list, budget.save, dll.
 (function () {
   const cfg = window.NEST_CONFIG || {};
   const base = (cfg.API_URL || "").replace(/\/$/, "");
@@ -9,37 +10,31 @@
   function clearToken() { localStorage.removeItem(cfg.TOKEN_KEY || "nest_token"); }
 
   async function request(action, params, method) {
-    method = method || "GET";
-    const url = new URL(base);
-    url.searchParams.set("action", action);
-    if (token()) url.searchParams.set("token", token());
-    const opts = { method };
-    if (method === "POST") {
-      opts.headers = { "Content-Type": "application/json" };
-      opts.body = JSON.stringify(Object.assign({ action }, params || {}));
-    } else {
-      Object.keys(params || {}).forEach(k => url.searchParams.set(k, params[k]));
-    }
-    const res = await fetch(url.toString(), opts);
+    method = method || "POST";
+    const payload = { action: action, token: token() || "", data: params || {} };
+    const res = await fetch(base, {
+      method: method,
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
-    if (json && json.error) throw new Error(json.error);
-    return json;
+    if (!json || json.ok === false) throw new Error((json && json.error) || "API error");
+    return json.data;
   }
 
   window.API = {
     token, setToken, clearToken,
-    login: (u, pin) => request("auth.login", { username: u, pin }, "POST"),
-    accounts: () => request("accounts.list"),
-    categories: () => request("categories.list"),
-    transactions: (p) => request("transactions.list", p || {}),
-    addTransaction: (d) => request("transactions.add", d, "POST"),
-    updateTransaction: (d) => request("transactions.update", d, "POST"),
-    deleteTransaction: (id) => request("transactions.delete", { id }, "POST"),
-    budget: (p) => request("budget.list", p || {}),
-    upsertBudget: (d) => request("budget.upsert", d, "POST"),
-    dashboard: (p) => request("dashboard.summary", p || {}),
-    period: (p) => request("periods.current", p || {}),
-    settings: () => request("settings.get"),
+    login: (username, password) => request("login", { username, password }),
+    loginPin: (userId, pin) => request("login_pin", { user_id: userId, pin }),
+    me: () => request("me", {}),
+    master: () => request("master", {}),
+    dashboard: (f) => request("dashboard", f || {}),
+    transactions: (f) => request("tx.list", f || {}),
+    saveTransaction: (d) => request("tx.save", d),
+    deleteTransaction: (id) => request("tx.delete", { id }),
+    budget: (f) => request("budget.list", f || {}),
+    saveBudget: (d) => request("budget.save", d),
+    settings: () => request("me", {}).then((r) => r.settings),
   };
 })();
