@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; font: 11px/1.45 monospace; }
+      iframe { position: absolute; left: -9999px; border: 0; }
+      pre { padding: 10px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="out">running…</pre>
+    <div id="host"></div>
+    <script>
+      const out = document.getElementById("out");
+      const host = document.getElementById("host");
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const log = [];
+      const WIDTHS = [360, 390, 430, 768, 900, 1280, 1440];
+      const SCREENS = ["beranda", "transaksi", "laporan", "kekayaan", "atur"];
+
+      function load(w, h, query) {
+        const f = document.createElement("iframe");
+        f.style.width = w + "px";
+        f.style.height = h + "px";
+        f.src = "../index.html" + query;
+        host.appendChild(f);
+        return f;
+      }
+
+      (async () => {
+        try {
+          for (const w of WIDTHS) {
+            for (const s of SCREENS) {
+              const h = w >= 1080 ? 900 : 844;
+              const f = load(w, h, "?skip=1&screen=" + s);
+              await new Promise((r) => (f.onload = r));
+              await sleep(700);
+              const doc = f.contentDocument;
+              const win = f.contentWindow;
+              const tabbar = doc.querySelector(".tabbar");
+              const side = doc.querySelector(".side");
+              const tabVis = getComputedStyle(tabbar).display !== "none";
+              const sideVis = getComputedStyle(side).display !== "none";
+
+              const bad = [];
+              doc.querySelectorAll(".shell *").forEach((el) => {
+                const r = el.getBoundingClientRect();
+                if (!r.width && !r.height) return;
+                if (r.right > w + 1 || r.left < -1) {
+                  bad.push(el.tagName + "." + String(el.className).slice(0, 20) + "@" + Math.round(r.left) + "-" + Math.round(r.right));
+                }
+              });
+
+              let clipped = 0;
+              doc.querySelectorAll(".shell *").forEach((el) => {
+                if (el.children.length) return;
+                const cs = getComputedStyle(el);
+                if (cs.overflow !== "visible" || !el.textContent.trim()) return;
+                if (el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 0) clipped++;
+              });
+
+              const docOverflow = doc.documentElement.scrollWidth > w + 1;
+              const grid = doc.querySelector(".dash-grid");
+              const cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 1;
+
+              log.push(
+                `${w}px ${s.padEnd(9)} tabbar=${tabVis ? "y" : "n"} side=${sideVis ? "y" : "n"} cols=${cols}` +
+                  ` hOverflow=${bad.length ? bad.slice(0, 3).join(",") : "none"}` +
+                  ` vClip=${clipped} docW=${docOverflow ? "OVERFLOW" : "ok"}`,
+              );
+              f.remove();
+            }
+          }
+
+          /* batas hak akses role anak */
+          const a = load(390, 844, "?skip=1&role=anak");
+          await new Promise((r) => (a.onload = r));
+          await sleep(700);
+          const ad = a.contentDocument;
+          log.push(
+            "role anak: tabs=" +
+              [...ad.querySelectorAll("[data-screen]")].map((b) => b.dataset.screen).join("/") +
+              " fab=" +
+              getComputedStyle(ad.querySelector("#fab")).display +
+              " budget=" +
+              ad.body.innerHTML.includes("Anggaran") +
+              " bills=" +
+              ad.body.innerHTML.includes("Tagihan terdekat") +
+              " tx=" +
+              ad.querySelectorAll(".tx").length,
+          );
+          a.remove();
+
+          out.textContent = log.join("\n");
+        } catch (e) {
+          out.textContent = log.join("\n") + "\nERROR " + e.message;
+        }
+      })();
+    </script>
+  </body>
+</html>

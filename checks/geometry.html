@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; font: 11px/1.5 monospace; }
+      iframe { position: absolute; left: -9999px; border: 0; }
+      pre { padding: 10px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="out">…</pre>
+    <div id="host"></div>
+    <script>
+      const out = document.getElementById("out");
+      const host = document.getElementById("host");
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const rows = [];
+
+      const box = (el) => {
+        if (!el) return "null";
+        const r = el.getBoundingClientRect();
+        return `x${Math.round(r.x)} y${Math.round(r.y)} ${Math.round(r.width)}×${Math.round(r.height)}`;
+      };
+
+      async function probe(w, h, q, label, tag) {
+        const f = document.createElement("iframe");
+        f.style.width = w + "px";
+        f.style.height = h + "px";
+        f.src = "../index.html" + q;
+        host.appendChild(f);
+        await new Promise((r) => (f.onload = r));
+        await sleep(900);
+        const d = f.contentDocument;
+        const win = f.contentWindow;
+        const g = (s) => d.querySelector(s);
+        const cs = (s) => (g(s) ? win.getComputedStyle(g(s)) : null);
+
+        rows.push(`--- ${label} ${w}×${h}`);
+        rows.push(`side        ${box(g(".side"))} display=${cs(".side").display}`);
+        rows.push(`scroll      ${box(g(".scroll"))} padL=${cs(".scroll").paddingLeft} padR=${cs(".scroll").paddingRight}`);
+        rows.push(`hero        ${box(g(".hero"))} fs=${cs(".hero .big").fontSize}`);
+        rows.push(`col-a       ${box(d.querySelectorAll(".dash-grid > .col")[0])}`);
+        rows.push(`col-b       ${box(d.querySelectorAll(".dash-grid > .col")[1])}`);
+        rows.push(`hero full   ${(g("#heroBebas") || {}).textContent}`);
+        rows.push(`tabbar      ${box(g(".tabbar"))} display=${cs(".tabbar").display}`);
+        rows.push(`fab         ${box(g("#fab"))} display=${cs("#fab").display}`);
+        rows.push(`smallest fs ${Math.min(...[...d.querySelectorAll(".shell *")].filter((e) => !e.children.length && e.textContent.trim()).map((e) => parseFloat(win.getComputedStyle(e).fontSize)))}px`);
+        const t = g("#toast");
+        rows.push(`toast       display=${cs("#toast").display} opacity=${cs("#toast").opacity}`);
+        if (g(".sheet") && g(".sheet").classList.contains("on")) {
+          const r = g(".sheet").getBoundingClientRect();
+          rows.push(`sheet       ${box(g(".sheet"))} centerX=${Math.round(r.left + r.width / 2)} opacity=${cs(".sheet").opacity} radius=${cs(".sheet").borderRadius}`);
+        }
+        f.remove();
+      }
+
+      (async () => {
+        try {
+          await probe(390, 844, "?skip=1", "HP beranda", "");
+          await probe(390, 844, "?skip=1&sheet=1", "HP form", "");
+          await probe(1440, 900, "?skip=1", "WEB beranda", "");
+          await probe(1440, 900, "?skip=1&sheet=1", "WEB form", "");
+          await probe(1024, 768, "?skip=1", "TABLET beranda", "");
+          out.textContent = rows.join("\n");
+        } catch (e) {
+          out.textContent = rows.join("\n") + "\nERROR " + e.message;
+        }
+      })();
+    </script>
+  </body>
+</html>

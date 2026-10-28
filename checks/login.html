@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; font: 11px/1.5 monospace; }
+      iframe { position: absolute; left: -9999px; border: 0; }
+      pre { padding: 10px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="out">…</pre>
+    <div id="host"></div>
+    <script>
+      const out = document.getElementById("out");
+      const host = document.getElementById("host");
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const log = [];
+
+      async function run(w, h, label) {
+        const f = document.createElement("iframe");
+        f.style.width = w + "px";
+        f.style.height = h + "px";
+        f.src = "../index.html";
+        host.appendChild(f);
+        await new Promise((r) => (f.onload = r));
+        await sleep(600);
+
+        const win = f.contentWindow;
+        const d = f.contentDocument;
+        const errors = [];
+        win.addEventListener("error", (e) => errors.push(e.message));
+
+        const click = (el) => el.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        const login = d.querySelector("#login");
+        const brand = d.querySelector(".brand h1").textContent;
+        const keys = d.querySelectorAll("[data-lkey]").length;
+
+        ["1", "2", "3", "4"].forEach((k) => click(d.querySelector('[data-lkey="' + k + '"]')));
+        await sleep(300);
+        const dots = d.querySelectorAll("#pin i.on").length;
+        await sleep(1500);
+
+        const hero = d.querySelector("#heroBebas");
+        log.push(
+          `${label}: brand=${brand} keys=${keys} dots=${dots} loginDisplay=${login.style.display}` +
+            ` hero=${hero ? hero.textContent : "none"} toast=${d.querySelector("#toast").textContent.trim()}` +
+            ` errors=${errors.length ? errors.join("; ") : "none"}`,
+        );
+        f.remove();
+      }
+
+      (async () => {
+        try {
+          await run(390, 844, "HP login");
+          await run(1440, 900, "WEB login");
+          out.textContent = log.join("\n");
+        } catch (e) {
+          out.textContent = log.join("\n") + "\nERROR " + e.message;
+        }
+      })();
+    </script>
+  </body>
+</html>

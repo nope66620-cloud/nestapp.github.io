@@ -1,0 +1,182 @@
+﻿<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; font: 11px/1.45 monospace; }
+      iframe { position: absolute; left: -9999px; border: 0; }
+      pre { padding: 10px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="out">running…</pre>
+    <div id="host"></div>
+    <script>
+      const out = document.getElementById("out");
+      const host = document.getElementById("host");
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const log = [];
+
+      async function fresh(w, h, q) {
+        const f = document.createElement("iframe");
+        f.style.width = w + "px";
+        f.style.height = h + "px";
+        f.src = "../index.html" + q;
+        host.appendChild(f);
+        await new Promise((r) => (f.onload = r));
+        await sleep(800);
+        return f;
+      }
+
+      (async () => {
+        try {
+          /* ---------- HP 390px ---------- */
+          let f = await fresh(390, 844, "?skip=1");
+          let w = f.contentWindow;
+          let d = f.contentDocument;
+          const $ = (s) => d.querySelector(s);
+          const click = (el) => {
+            if (!el) throw new Error("missing element");
+            el.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+          };
+
+          log.push("hp boot: hero=" + $("#heroBebas").textContent + " tab=" + d.querySelectorAll(".tabbar [data-screen]").length);
+
+          click($('[data-screen="transaksi"]'));
+          await sleep(400);
+          log.push("hp tab transaksi: rows=" + d.querySelectorAll(".tx").length + " h1=" + $(".view h1").textContent);
+
+          click($('[data-filter="masuk"]'));
+          await sleep(300);
+          log.push("hp filter masuk: rows=" + d.querySelectorAll(".tx").length);
+
+          const q = $("#q");
+          q.value = "kopi";
+          q.dispatchEvent(new w.Event("input", { bubbles: true }));
+          await sleep(350);
+          log.push("hp cari kopi (filter masuk): rows=" + d.querySelectorAll(".tx").length);
+
+          click($('[data-filter="semua"]'));
+          await sleep(250);
+          const q2 = $("#q");
+          q2.value = "kopi";
+          q2.dispatchEvent(new w.Event("input", { bubbles: true }));
+          await sleep(350);
+          log.push("hp cari kopi (semua): rows=" + d.querySelectorAll(".tx").length);
+
+          const q3 = $("#q");
+          q3.value = "";
+          q3.dispatchEvent(new w.Event("input", { bubbles: true }));
+          await sleep(300);
+          log.push("hp cari dikosongkan: rows=" + d.querySelectorAll(".tx").length);
+
+          click($("#fab"));
+          await sleep(1100);
+          log.push("hp sheet: on=" + $("#sheet").classList.contains("on") + " top=" + Math.round($("#sheet").getBoundingClientRect().top));
+
+          ["2", "5", "0", "000"].forEach((k) => click($('[data-key="' + k + '"]')));
+          await sleep(250);
+          click($('[data-cat="kebutuhan"]'));
+          await sleep(250);
+          const note = $("#noteInput");
+          note.value = "uji <b>html</b>";
+          note.dispatchEvent(new w.Event("input", { bubbles: true }));
+          await sleep(150);
+
+          const before = w.eval("compute().keluar");
+          click($('[data-act="save"]'));
+          await sleep(800);
+          const after = w.eval("compute().keluar");
+          log.push("hp simpan: keluar " + before + "->" + after + " toast=" + $("#toast").textContent.trim());
+
+          const rendered = d.body.innerHTML.includes("&lt;b&gt;html&lt;/b&gt;");
+          log.push("hp escape catatan: " + rendered + " adaTagMentah=" + d.body.innerHTML.includes("<b>html</b>"));
+
+          click($('[data-screen="laporan"]'));
+          await sleep(600);
+          log.push(
+            "hp laporan: kategori=" +
+              d.querySelectorAll(".budget-row").length +
+              " akun=" +
+              d.querySelectorAll(".rows .r").length +
+              " ekspor=" +
+              d.querySelectorAll('[data-act="ekspor"]').length,
+          );
+
+          click($('[data-screen="kekayaan"]'));
+          await sleep(700);
+          log.push("hp kekayaan: net=" + $("#heroNet").textContent + " bars=" + d.querySelectorAll(".spark div").length);
+
+          click($('[data-screen="beranda"]'));
+          await sleep(500);
+          click($('[data-seg="mode"] button[data-val="gajian"]'));
+          await sleep(800);
+          log.push("hp mode gajian: " + $(".period-note").textContent.trim() + " hero=" + $("#heroBebas").textContent);
+          f.remove();
+
+          /* ---------- Web 1440px ---------- */
+          f = await fresh(1440, 900, "?skip=1");
+          w = f.contentWindow;
+          d = f.contentDocument;
+          const $w = (s) => d.querySelector(s);
+          const clickW = (el) => el.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+
+          const sideBox = $w(".side").getBoundingClientRect();
+          const sheetCss = getComputedStyle($w(".sheet"));
+          log.push(
+            "web: sidebar=" +
+              Math.round(sideBox.width) +
+              " sideNav=" +
+              d.querySelectorAll(".side-nav button").length +
+              " tabbar=" +
+              getComputedStyle($w(".tabbar")).display +
+              " heroFs=" +
+              getComputedStyle($w(".hero .big")).fontSize,
+          );
+
+          clickW($w('.side-nav [data-screen="laporan"]'));
+          await sleep(500);
+          log.push("web nav laporan: h1=" + $w(".view h1").textContent + " rows=" + d.querySelectorAll(".budget-row").length);
+
+          clickW($w(".side-cta"));
+          await sleep(600);
+          const sheetBox = $w(".sheet").getBoundingClientRect();
+          log.push(
+            "web sheet dialog: on=" +
+              $w(".sheet").classList.contains("on") +
+              " w=" +
+              Math.round(sheetBox.width) +
+              " centerX=" +
+              Math.round(sheetBox.left + sheetBox.width / 2) +
+              " opacity=" +
+              getComputedStyle($w(".sheet")).opacity,
+          );
+          clickW($w('[data-act="close-sheet"]'));
+          await sleep(500);
+
+          clickW($w('.side-nav [data-screen="atur"]'));
+          await sleep(500);
+          const roleNames = [...d.querySelectorAll("[data-role]")].map((b) => b.dataset.role);
+          log.push("web atur: roles=" + roleNames.join("/") + " switchOn=" + $w(".role-card.on").dataset.role);
+
+          clickW($w('[data-role="anak"]'));
+          await sleep(700);
+          log.push(
+            "web role anak: sideNav=" +
+              [...d.querySelectorAll(".side-nav button")].map((b) => b.dataset.screen).join("/") +
+              " fab=" +
+              getComputedStyle($w("#fab")).display +
+              " slot=" +
+              $w(".side-note").textContent.trim().slice(0, 22),
+          );
+          f.remove();
+
+          out.textContent = log.join("\n");
+        } catch (e) {
+          out.textContent = log.join("\n") + "\nERROR " + e.message;
+        }
+      })();
+    </script>
+  </body>
+</html>
+
